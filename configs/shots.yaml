@@ -1,0 +1,36 @@
+gsm8k:
+  shot1:
+    question: ""
+    chain: ""
+    answer: ""
+
+  shot2:
+    question: ""
+    chain: ""
+    answer: ""
+
+textvqa:
+  shot1:
+    question: "what number is shown at the bottom?"
+    img_path: "/mnt/data1/yangmrl/ALW_debug/data/raw_data/textvqa_data/images/train/0a0bc91825468c45.jpg"
+    answer: "30"
+
+pope:
+  shot1:
+    question: "Is there a person in the image?"
+    img_path: "/mnt/data1/yangmrl/ALW_debug/data/raw_data/pope/random/images/3.jpg"
+    answer: "yes"
+
+pope_alw:
+  shot1:
+    question: "Is there a person in the image?"
+    img_path: "/mnt/data1/yangmrl/ALW_debug/data/raw_data/pope/random/images/3.jpg"
+    answer: "yes"
+
+chair:
+
+mme:
+  shot1:
+    question: "Is it appropriate to translate the Chinese in the image into English 'to add the finishing touches' in the picture? Please answer yes or no."
+    img_path: '/mnt/data1/zjx/project/datasets/mme/text_translation/images/0020.png'
+    answer: "No"
