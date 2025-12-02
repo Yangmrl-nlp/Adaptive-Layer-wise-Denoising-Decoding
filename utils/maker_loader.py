@@ -1,4 +1,3 @@
-
 from abc import ABC, abstractmethod
 from typing import Dict, Type
 import os
@@ -48,7 +47,7 @@ class Maker(ABC):
 
             elif split == "all":
                 #print("debug")
-                for split in ["train", "valid"]:
+                for split in ["valid"]:
                     print(f'Making {split} set...')
                     self._forward_split(dataset, split) 
 
@@ -94,6 +93,8 @@ class GenerateMaker(Maker):
           k = k_proj(hidden)
           #print(q.shape)
           #print(k.shape)
+          if k.shape[-1] != q.shape[-1]:
+            k = torch.nn.functional.linear(k, q_proj.weight[:, :1024])
           attn_score = (q @ k.transpose(-1,-2))
         elif self.args.llm == 'instructblip_vicuna_7b':
           q_proj = self.llm.model.language_model.model.layers[best_layer].self_attn.q_proj
@@ -136,9 +137,9 @@ class GenerateMaker(Maker):
     def define_best(self, dict_outputs, input_ids, question_ids, answer_ids):
         fence = input_ids.shape[-1] - answer_ids.shape[-1]
         head_layer = self.llm.model.get_output_embeddings()
-        #print(f"debug fence token: {self.llm.processor.decode([input_ids[0,fence-1]])}")
+        # print(f"debug fence token: {self.llm.processor.decode([9891])}") fence -1 是yes
         if "pope" in self.args.dataset:
-            if self.args.llm == 'llava1.5_7b':
+            if self.args.llm == 'llava1.5_7b' or self.args.llm == 'llavanext_8b':
                 final_logits = head_layer(dict_outputs[self.mature_layer])[0, fence - 2, :]
             elif self.args.llm == 'instructblip_vicuna_7b':
                 final_logits = head_layer(dict_outputs[self.mature_layer])[0, fence - 1, :]
@@ -158,16 +159,18 @@ class GenerateMaker(Maker):
             else:
                 premature_layer = layer
                 
-                base_logits = self.visionmask(dict_outputs[premature_layer-1],premature_layer,input_ids[0])[0,fence-1,:]
+                if self.args.llm == 'llava1.5_7b' or self.args.llm == 'llavanext_8b':
+                     base_logits = self.visionmask(dict_outputs[premature_layer-1],premature_layer,input_ids[0])[0,fence-2,:] 
+                elif self.args.llm == 'instructblip_vicuna_7b':
+                     base_logits = self.visionmask(dict_outputs[premature_layer-1],premature_layer,input_ids[0])[0,fence-1,:]
                 #base_logits = head_layer(dict_outputs[premature_layer])[0,fence-1,:]
                 base_logits = base_logits.log_softmax(dim=-1).unsqueeze(0)
                 relative_top_mask = get_relative_top_filter(final_logits, 0.1)
                 final_logits = torch.where(relative_top_mask, -1000, final_logits)
                 mask = final_logits[0] < -1e3
+                
+                # print(base_logits.shape)
                 # print(mask.shape)
-                # print(f"debug: {base_logits.shape}")
-                # print(f"debug: {final_logits.shape}")
-                # print(f"debug: {base_logits.shape}")
                 base_logits[0][mask] = -1e3
 
                 diff_logits = final_logits + base_logits
@@ -177,13 +180,13 @@ class GenerateMaker(Maker):
             #diff_logits.unsqueeze(0)
             # if self.args.dataset == "pope":
             #     diff_logits = diff_logits.unsqueeze(0)
-            
-            for i in range(answer_ids.shape[-1]):
-                
+            # print(f"debug: {answer_ids}")
+            le = answer_ids.shape[-1]
+            for i in range(le):
                 current_token = fence + i - 1
                 if self.args.llm == 'instructblip_vicuna_7b':
                     current_token = fence + i
-                #print(f"debug: {self.llm.processor.decode([input_ids[0,current_token]])}")
+                # print(f"debug: {self.llm.processor.decode([input_ids[0,current_token]])}")
                 input_ids_all = input_ids[0, :current_token].unsqueeze(0).to(diff_logits.device) 
                 current_logits = self.processors(input_ids_all, diff_logits[i].unsqueeze(0))
                 current_logits = current_logits.softmax(dim=-1)
@@ -194,7 +197,7 @@ class GenerateMaker(Maker):
             layer_probs.append(probs)
 
         layer_probs = np.array(layer_probs)
-        #print(layer_probs)
+        # print(layer_probs)
         best_layers = np.argmax(layer_probs, axis=0)
         max_values = layer_probs[best_layers, np.arange(best_layers.shape[0])]
         best_layers = np.where(max_values == layer_probs[-1, :], -1, best_layers)
@@ -204,7 +207,7 @@ class GenerateMaker(Maker):
             context = self.llm.tokenizer.decode(torch.cat((question_ids, answer_ids[:i+1])), skip_special_tokens=True)
             contexts.append(context)
 
-        assert len(contexts) == len(best_layers)
+        #assert len(contexts) == len(best_layers)
         #print(contexts)
         return contexts, best_layers.tolist()
 
@@ -232,7 +235,8 @@ class V2TGenerateMaker(GenerateMaker):
             if not (row['question'] and row['answer'] and row['image_path']):
                 continue
             inputs, question_ids, answer_ids = prepare_input_for_v2t_train(shot_dict, self.llm, row, self.args)
-            if self.args.llm == 'llava1.5_7b':
+            answer_ids = answer_ids[-1:]
+            if self.args.llm == 'llava1.5_7b' or self.args.llm == 'llavanext_8b':
                logits = self.llm.model(**inputs,output_hidden_states = True).hidden_states
             elif self.args.llm == 'instructblip_vicuna_7b':
                 logits = self.llm.model(**inputs,output_hidden_states = True).language_model_outputs.hidden_states
