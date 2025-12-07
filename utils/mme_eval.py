@@ -60,11 +60,11 @@ class calculate_metrics:
         }
 
     def process_result(self, jsonl_file):
-        # 读取单个 JSONL 文件
+       
         print(f"Reading from: {jsonl_file}")
         data = [json.loads(l) for l in open(jsonl_file, "r", encoding="utf-8").readlines()]
         
-        # 按 category 分组（转为小写以统一处理）
+       
         category_data = defaultdict(list)
         for item in data:
             category = item.get("category", "unknown").lower()
@@ -72,10 +72,10 @@ class calculate_metrics:
         
         print(f"Found {len(category_data)} categories: {list(category_data.keys())}\n")
 
-        # 用于计算总分
+      
         total_scores = 0
         
-        # 按 Perception 和 Cognition 分类处理
+       
         for eval_type, task_name_list in eval_type_dict.items():
             print("===========", eval_type, "===========")
 
@@ -83,7 +83,7 @@ class calculate_metrics:
             task_score_dict = {}
 
             for task_name in task_name_list:
-                # 转为小写查找
+            
                 task_name_lower = task_name.lower()
                 if task_name_lower not in category_data:
                     print(f"[WARNING] Missing category: {task_name}, skip.")
@@ -92,7 +92,7 @@ class calculate_metrics:
                 task_items = category_data[task_name_lower]
                 print(f"Processing {task_name}: {len(task_items)} items")
 
-                # 构造 lines 格式
+        
                 lines = []
                 for item in task_items:
                     img_name = item["image"]
@@ -147,11 +147,9 @@ class calculate_metrics:
             for name, score in task_score_dict.items():
                 print("\t", name, "score:", score)
             print("\n")
-            
-            # 累加到总分
+        
             total_scores += scores
         
-        # 输出最终总分
         print("=" * 50)
         print(f"MME Total Score: {total_scores}")
         print("=" * 50)
