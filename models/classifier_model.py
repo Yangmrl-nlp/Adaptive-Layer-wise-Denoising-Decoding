@@ -43,7 +43,7 @@ class Classifier(BaseModel):
 
             self.model.cuda()
 
-            # print("[Classifier] Success.\n")
+            print("[Classifier] Success.\n")
 
     def train(self):
         dataset = load_dataset(self.args)
