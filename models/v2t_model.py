@@ -12,8 +12,8 @@ import seaborn as sns
 from .base import BaseModel
 from utils.utils import *
 import torch.nn.functional as F
-# from MiniGPT_4.load_minigpt4 import load_model
 from .plot import  plot_token_prob_bar
+
 def _import_llava():
     from transformers import LlavaForConditionalGeneration, AutoProcessor
 
@@ -41,7 +41,7 @@ class V2TLLM(BaseModel):
         self.name = args.llm
         self.cfg_dict = cfg             
         self.args =args
-    # processor = InstructBlipProcessor.from_pretrained('/mnt/data1/zjx/project/vcd/experiments/checkpoints/InstructBLIP', use_fast=False)
+   
     def load(self):
         
         arch = self.cfg_dict.get("arch", "auto")
@@ -69,7 +69,7 @@ class V2TLLM(BaseModel):
         self.processor = AutoProcessor.from_pretrained(pretrained, use_fast=False)
         self.tokenizer = self.processor.tokenizer
         self.model.eval()
-        # print(self.model)
+
         print("[V2TLLM] Success.\n")
     
     def get_lr(self,input_ids):
@@ -85,50 +85,42 @@ class V2TLLM(BaseModel):
         l = 602
       elif self.args.llm == 'llavanext_8b':
         l = 2172
-      #print(l,r)
+     
       return l,r
       
     def visionmask(self, hidden, best_layer,input_ids):
         
-        #hidden[:, self.vis_start:self.vis_end+1, :] = 0
-        #print(self.model)
+       
         l,r = self.get_lr(input_ids)
         if self.args.llm == 'llava1.5_7b' or self.args.llm == 'llavanext_8b':
           q_proj = self.model.language_model.layers[best_layer].self_attn.q_proj
           k_proj = self.model.language_model.layers[best_layer].self_attn.k_proj
           q = q_proj(hidden)
           k = k_proj(hidden)
-          #print(k.shape)
-          #print(q.shape)
+         
           if k.shape[-1] != q.shape[-1]:
             k = torch.nn.functional.linear(k, q_proj.weight[:, :1024])
           attn_score = (q @ k.transpose(-1,-2))
-          #print(attn_score.shape)
+          
         elif self.args.llm == 'instructblip_vicuna_7b':
           q_proj = self.model.language_model.model.layers[best_layer].self_attn.q_proj
           k_proj = self.model.language_model.model.layers[best_layer].self_attn.k_proj
           q = q_proj(hidden)
           k = k_proj(hidden)
           attn_score = (q @ k.transpose(-1,-2))
-        #print(f"debug: {attn_score.shape}")
-        #print(f"debug: {attn_score[0,1,:]}")
-        token_score = attn_score.mean(dim=(0, 1))   # shape: [seq_len]
+       
+        token_score = attn_score.mean(dim=(0, 1))   
 
         sorted_indices = torch.argsort(token_score, descending=False)
         cnt = 0
         l,r = self.get_lr(input_ids)
         for idx in sorted_indices:
           if idx >= l and idx <= r:
-            #print(f"debug: {self.tokenizer.decode(input_ids[idx])}")
             hidden[:,idx,:] = 0
             cnt+=1
-            #print("debug: ",sorted_indices[idx])
-            #print(cnt)
             if cnt == math.ceil((r-l+1) * self.args.Prune_portion):
               break
         
-        #print("avg_attn_score: ", token_score)
-        #print("token_indices: ", sorted_indices)
         if self.args.llm == 'llava1.5_7b' or self.args.llm == 'llavanext_8b':
           layers = self.model.language_model.layers[best_layer:]
           rotary_emb = self.model.language_model.rotary_emb
@@ -138,12 +130,10 @@ class V2TLLM(BaseModel):
   
         for i, layer in enumerate(layers):
             seq_len = hidden.shape[1]
-            position_ids = torch.arange(seq_len, device=hidden.device).unsqueeze(0)  # (1, seq_len)
+            position_ids = torch.arange(seq_len, device=hidden.device).unsqueeze(0)  
             cos, sin = rotary_emb(hidden, position_ids)
             hidden = layer(hidden, position_embeddings=(cos, sin))
-            #hidden[:, self.vis_start:self.vis_end-1, :] = 0
-        
-        #hidden = self.model.language_model.norm(hidden)
+            
         head_layer = self.model.get_output_embeddings()
         logits = head_layer(hidden)
         return logits[0,-1,:]
@@ -168,7 +158,7 @@ class V2TLLM(BaseModel):
                                 return_dict=True)
             
             if self.args.llm == 'llava1.5_7b' or self.args.llm == 'llavanext_8b':
-              logits = outputs.hidden_states[1:] # llava返回的logits有embedding层 (len(logits)=33)，要去掉，只考虑decoder层
+              logits = outputs.hidden_states[1:] 
               past_key_values = outputs.past_key_values
             elif self.args.llm == 'instructblip_vicuna_7b':
               logits = outputs.language_model_outputs.hidden_states[1:]
@@ -188,14 +178,9 @@ class V2TLLM(BaseModel):
             final_logits = final_logits.log_softmax(dim=-1)
 
             best_layer = get_best_layer(self.args, classifier, question_text)
-            # best_layer = random.randint(-1, 26)
-            # best_layer = 10
-            #print(best_layer)
-            #print(final_logits.shape)
     
             if best_layer == None and self.args.decode_method == 'vanilla':
                 next_token_logits = final_logits 
-                #print(final_logits.shape)
 
             elif best_layer == -1:
                 relative_top_mask = get_relative_top_filter(final_logits, 0.1)
@@ -212,20 +197,19 @@ class V2TLLM(BaseModel):
                   stacked_premature_layers = torch.stack([logits[i][:, -1 , :] for i in candidate_premature_layers], dim=0)
                   softmax_mature_layer = torch.softmax(logits[mature_layer][:,-1, :], dim=-1)  
                   softmax_premature_layers = torch.softmax(stacked_premature_layers, dim=-1)  
-                  M = 0.5 * (softmax_mature_layer[None, :, :] + softmax_premature_layers)  # shape: (num_premature_layers, batch_size, num_features)
+                  M = 0.5 * (softmax_mature_layer[None, :, :] + softmax_premature_layers)  
                 # 4. Calculate log-softmax for the KL divergence
-                  log_softmax_mature_layer = torch.log_softmax(logits[mature_layer][:, -1, :], dim=-1)  # shape: (batch_size, num_features)
-                  log_softmax_premature_layers = torch.log_softmax(stacked_premature_layers, dim=-1)  # shape: (num_premature_layers, batch_size, num_features)
+                  log_softmax_mature_layer = torch.log_softmax(logits[mature_layer][:, -1, :], dim=-1) 
+                  log_softmax_premature_layers = torch.log_softmax(stacked_premature_layers, dim=-1)  
 
                   # 5. Calculate the KL divergences and then the JS divergences
-                  kl1 = F.kl_div(log_softmax_mature_layer[None, :, :], M, reduction='none').mean(-1)  # shape: (num_premature_layers, batch_size)
-                  kl2 = F.kl_div(log_softmax_premature_layers, M, reduction='none').mean(-1)  # shape: (num_premature_layers, batch_size)
-                  js_divs = 0.5 * (kl1 + kl2)  # shape: (num_premature_layers, batch_size)
+                  kl1 = F.kl_div(log_softmax_mature_layer[None, :, :], M, reduction='none').mean(-1)  
+                  kl2 = F.kl_div(log_softmax_premature_layers, M, reduction='none').mean(-1) 
+                  js_divs = 0.5 * (kl1 + kl2)  
                 # 6. Reduce the batchmean
-                  js_divs = js_divs.mean(-1)  # shape: (num_premature_layers,)
-                  #print(js_divs)
+                  js_divs = js_divs.mean(-1)  
                   best_layer = candidate_premature_layers[int(js_divs.argmax().cpu().item())]
-                  #print(f'debug best_layer: {best_layer}')
+                  
                 
                 base_logits = head_layer(logits[best_layer])[:,-1,:]
                 base_logits = base_logits.log_softmax(dim=-1)
@@ -234,70 +218,51 @@ class V2TLLM(BaseModel):
                 next_token_logits = final_logits - base_logits
             
             else:
-                # plot_token_prob_bar(final_logits,"final")
-                # base_logits = head_layer(logits[best_layer])[:,-1,:]
-                # base_logits = base_logits.log_softmax(dim=-1)
-                # plot_token_prob_bar(base_logits,"original")
-                #print(best_layer)
                 if self.args.Prune == 'True':
                   base_logits = self.visionmask(logits[best_layer-1],best_layer,input_ids_all[0])
                 else:
                   base_logits = head_layer(logits[best_layer])[:,-1,:]
-                # plot_token_prob_bar(base_logits,"purning")
-                #print(base_logits.shape)
+               
                 base_logits = base_logits.log_softmax(dim=-1)
-                #print(best_layer)
-                # plot_token_prob_bar(base_logits,"purning")
+                
                 relative_top_mask = get_relative_top_filter(final_logits, 0.1)
                 final_logits = torch.where(relative_top_mask, -1000, final_logits)
                 
                 if self.args.Prune == 'True':   
-                  # print("yes")
+        
                   next_token_logits = final_logits + base_logits
-                  #print(next_token_logits.shape)
                   if denoised_logits == None:
                     denoised_logits = [next_token_logits]
                   else:
                     for i in range(len(denoised_logits)):
                       denoised_logits[i] = torch.cat([denoised_logits[i],next_token_logits],dim = 0)
-                  #plot_token_prob_bar(next_token_logits,"prune")
                 else:
-                  next_token_logits = final_logits - base_logits
-                #next_token_logits = next_token_logits.log_softmax(dim=-1)
+                  next_token_logits = final_logits - base_logits #ALW
 
             input_ids_all = input_ids_all.to(next_token_logits.device)
-            #print(f"debug shape: {next_token_logits.shape}")
-            #next_token_logits = next_token_logits.unsqueeze(0)
+            
             next_token_logits = self.processors(input_ids_all, next_token_logits)
-            #print(next_token_logits.shape)
+            
             next_token = torch.argmax(next_token_logits, dim=-1)
-            #print(next_token)
+           
             new_tokens_list.append(next_token.item())
             if next_token.item() == self.tokenizer.eos_token_id:
                 break
-            
-            # new_tokens_list, stop = if_stop(new_tokens_list, stopping_words) # TODO: 传入某些数据集的停止符
-            # if stop:
-            #     break
 
             input_ids = next_token.unsqueeze(0)
             attention_mask = torch.cat([inputs['attention_mask'], inputs['attention_mask'].new_ones((inputs['attention_mask'].shape[0], 1))], dim=-1)
-            #print(f"debug attention: {attention_mask.shape}")
+            
             inputs['attention_mask'] = attention_mask
-            #print(input_ids)
-            #print(inputs['input_ids']) torch.cat((inputs['input_ids'],input_ids),dim = -1)
-            #print(type(inputs['input_ids']))
             
             inputs['input_ids'] = input_ids
-            #print(f"debug: {self.tokenizer.decode(input_ids[0][0])}")
+           
             if self.args.llm == 'llava1.5_7b' or self.args.llm == 'llavanext_8b':
               inputs["pixel_values"] = None
             question_ids = self.tokenizer.encode(question_text)
             
             input_ids_all = torch.cat([input_ids_all, next_token[:, None]], dim=-1)
             question_text = question_text + self.tokenizer.decode(next_token)
-        
-        #print(denoised_logits[0].shape)
+    
         for t in new_tokens_list:
           print(self.tokenizer.decode([t]))
         denoised_logits = denoised_logits[0]
@@ -307,7 +272,7 @@ class V2TLLM(BaseModel):
         
         final_logits = head_layer(true_logits[mature_layer])[0, answer_id-2: -1, :]
         final_logits = final_logits.log_softmax(dim=-1)
-        probs = torch.exp(final_logits)                         # shape (seq_len_slice, vocab)
+        probs = torch.exp(final_logits)                        
         entropy_per_timestep = -( probs * final_logits).sum(dim=-1)
         stacked.append(entropy_per_timestep)
         
@@ -318,7 +283,7 @@ class V2TLLM(BaseModel):
             base_logits = base_logits.log_softmax(dim=-1)
             probs = torch.exp(base_logits)  
             entropy_per_timestep = -(probs * base_logits).sum(dim=-1)
-            #print(base_logits.shape)
+          
             stacked.append(entropy_per_timestep)
             
         stacked_tensors = torch.stack(stacked)
@@ -334,12 +299,8 @@ class V2TLLM(BaseModel):
         plt.yticks(rotation=0)
         plt.ylabel('i-th early exit layer')
         plt.savefig('heat.pdf', format="pdf")
-        # plt.savefig('heat.jpg')
-        # import pdb; pdb.set_trace()
-        plt.clf()
         
-        # plt.savefig('heat.svg', format="svg")
-        #pre_list.append(preds)
+        plt.clf()
         
         preds = self.tokenizer.decode(new_tokens_list, skip_special_tokens=True)
         return preds
