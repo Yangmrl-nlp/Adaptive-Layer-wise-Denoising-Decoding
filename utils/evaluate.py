@@ -32,17 +32,6 @@ def F1(pred, gold):
     f1 = 2 * precision * recall / (precision + recall)
         
     return f1
-
-def TextVqa_score(pred,gold):
-    pred_tokens = normalize_text(pred).split()
-    gold_tokens = [normalize_text(answer).split() for answer in gold]
-    num_same = 0
-    #print(pred_tokens)
-    #print(gold_tokens)
-    for i in range(len(gold_tokens)):
-        if gold_tokens[i] == pred_tokens:
-            num_same+=1   
-    return min(num_same/3,1)
     
 def ACC(json_path):
     correct = 0
