@@ -1,20 +1,27 @@
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0
 
-cd /mnt/data1/yangmrl/ALW_debug
-model='llava1.5_7b'
+cd /mnt/data2/yangmrl/project/ALD^2
+model='llavanext_8b'
 
 
-declare -a dataset_list=(
-    #'textvqa'
-    'pope'
+declare -a lr_list=(
+    1e-05
+    # 2e-05
+    # 5e-05
+    # 0.0001
 )
 
-for dataset in "${dataset_list[@]}"; do
+for lr in "${lr_list[@]}"; do
     # 'textvqa'
-    python -u ./make_training_data.py \
+    python -u ./train.py \
+        --classifier 'roberta-base' \
         --dataset 'pope' \
         --llm ${model} \
-        --pope 'random' \
-        --Prune 'True' 
-
+        --decode-method 'alw' \
+        --epoch 30 \
+        --batch-size 32 \
+        --lr ${lr} \
+        --save-every 100 \
+        --print-every 100 \
+        --pope adversarial
 done
