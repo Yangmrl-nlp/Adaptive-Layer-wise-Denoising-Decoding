@@ -1,7 +1,7 @@
-export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=0
 
-cd /mnt/data1/yangmrl/ALW_debug
-model='llava1.5_7b'
+cd /mnt/data2/yangmrl/project/ALD^2
+model='llavanext_8b'
 
 
 declare -a lr_list=(
@@ -14,14 +14,14 @@ declare -a lr_list=(
 for lr in "${lr_list[@]}"; do
     # 'textvqa'
     python -u ./train.py \
-        --classifier 'roberta-large' \
+        --classifier 'roberta-base' \
         --dataset 'pope' \
         --llm ${model} \
         --decode-method 'alw' \
         --epoch 30 \
-        --batch-size 16 \
+        --batch-size 32 \
         --lr ${lr} \
         --save-every 100 \
         --print-every 100 \
-        --pope random
+        --pope adversarial
 done
