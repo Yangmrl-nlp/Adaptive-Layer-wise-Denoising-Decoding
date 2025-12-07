@@ -1,6 +1,12 @@
 import torch
 from typing import Optional, Dict, Any
 import math
+from pathlib import Path
+import random
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+
 
 
 from .base import BaseModel
@@ -53,12 +59,12 @@ class V2TLLM(BaseModel):
         
         
         if self.args.llm == 'llava1.5_7b':
-            self.model = LlavaForConditionalGeneration.from_pretrained(pretrained, dtype=torch_dtype, low_cpu_mem_usage=True, device_map='auto')
+            self.model = LlavaForConditionalGeneration.from_pretrained(pretrained, torch_dtype=torch_dtype, low_cpu_mem_usage=True, device_map='auto')
             
         elif self.args.llm == 'instructblip_vicuna_7b':
-            self.model = InstructBlipForConditionalGeneration.from_pretrained(pretrained, dtype=torch_dtype,low_cpu_mem_usage=True, device_map='auto')
+            self.model = InstructBlipForConditionalGeneration.from_pretrained(pretrained, torch_dtype=torch_dtype,low_cpu_mem_usage=True, device_map='auto')
         elif self.args.llm == 'llavanext_8b':
-            self.model = LlavaNextForConditionalGeneration.from_pretrained(pretrained, dtype=torch_dtype,low_cpu_mem_usage=True, device_map='auto')
+            self.model = LlavaNextForConditionalGeneration.from_pretrained(Path(pretrained), torch_dtype=torch_dtype,low_cpu_mem_usage=True, device_map='auto')
         
         self.processor = AutoProcessor.from_pretrained(pretrained, use_fast=False)
         self.tokenizer = self.processor.tokenizer
@@ -113,10 +119,12 @@ class V2TLLM(BaseModel):
         l,r = self.get_lr(input_ids)
         for idx in sorted_indices:
           if idx >= l and idx <= r:
+            #print(f"debug: {self.tokenizer.decode(input_ids[idx])}")
             hidden[:,idx,:] = 0
             cnt+=1
             #print("debug: ",sorted_indices[idx])
-            if cnt == math.ceil((r-l+1) * 0.1):
+            #print(cnt)
+            if cnt == math.ceil((r-l+1) * self.args.Prune_portion):
               break
         
         #print("avg_attn_score: ", token_score)
@@ -134,7 +142,7 @@ class V2TLLM(BaseModel):
             cos, sin = rotary_emb(hidden, position_ids)
             hidden = layer(hidden, position_embeddings=(cos, sin))
             #hidden[:, self.vis_start:self.vis_end-1, :] = 0
-      
+        
         #hidden = self.model.language_model.norm(hidden)
         head_layer = self.model.get_output_embeddings()
         logits = head_layer(hidden)
@@ -144,16 +152,15 @@ class V2TLLM(BaseModel):
         shot_dict = dataset._create_shot()
         inputs, question_text = prepare_input_for_v2t_infer(shot_dict, self, item,self.args)
         input_ids_all = inputs['input_ids']
-        #print(input_ids_all[0][3700:4316])
-        max_new_tokens = 512
+        
+        max_new_tokens = self.args.max_new_tokens
         past_key_values = None
         new_tokens_list = []
-        # pre_list = []
-        # for best_layer in range(-1,25):
+        
+        true_logits = None
+        answer_id = None
+        denoised_logits = None
         for _ in range(max_new_tokens):
-            # if self.args.model == 'Qwen_VL_7b':
-            #   ouputs = self.model.generate()
-            # else:
             outputs = self.model(**inputs, 
                                 output_hidden_states=True, 
                                 use_cache=True,
@@ -169,15 +176,26 @@ class V2TLLM(BaseModel):
               
             mature_layer = len(logits)-1
             head_layer = self.model.get_output_embeddings()
+            
+            if true_logits == None:
+              true_logits = list(logits)
+              answer_id = true_logits[0].shape[1]
+            else:
+              for i in range(len(true_logits)):
+                true_logits[i] = torch.cat([true_logits[i],logits[i]],dim = 1)
+            
             final_logits = head_layer(logits[mature_layer])[:, -1, :]
             final_logits = final_logits.log_softmax(dim=-1)
 
             best_layer = get_best_layer(self.args, classifier, question_text)
-            
-            #best_layer = 6
+            # best_layer = random.randint(-1, 26)
+            # best_layer = 10
             #print(best_layer)
+            #print(final_logits.shape)
+    
             if best_layer == None and self.args.decode_method == 'vanilla':
-                next_token_logits = final_logits    
+                next_token_logits = final_logits 
+                #print(final_logits.shape)
 
             elif best_layer == -1:
                 relative_top_mask = get_relative_top_filter(final_logits, 0.1)
@@ -226,6 +244,7 @@ class V2TLLM(BaseModel):
                 else:
                   base_logits = head_layer(logits[best_layer])[:,-1,:]
                 # plot_token_prob_bar(base_logits,"purning")
+                #print(base_logits.shape)
                 base_logits = base_logits.log_softmax(dim=-1)
                 #print(best_layer)
                 # plot_token_prob_bar(base_logits,"purning")
@@ -235,7 +254,13 @@ class V2TLLM(BaseModel):
                 if self.args.Prune == 'True':   
                   # print("yes")
                   next_token_logits = final_logits + base_logits
-                  # plot_token_prob_bar(next_token_logits,"prune")
+                  #print(next_token_logits.shape)
+                  if denoised_logits == None:
+                    denoised_logits = [next_token_logits]
+                  else:
+                    for i in range(len(denoised_logits)):
+                      denoised_logits[i] = torch.cat([denoised_logits[i],next_token_logits],dim = 0)
+                  #plot_token_prob_bar(next_token_logits,"prune")
                 else:
                   next_token_logits = final_logits - base_logits
                 #next_token_logits = next_token_logits.log_softmax(dim=-1)
@@ -246,11 +271,11 @@ class V2TLLM(BaseModel):
             next_token_logits = self.processors(input_ids_all, next_token_logits)
             #print(next_token_logits.shape)
             next_token = torch.argmax(next_token_logits, dim=-1)
-            
+            #print(next_token)
             new_tokens_list.append(next_token.item())
             if next_token.item() == self.tokenizer.eos_token_id:
                 break
-
+            
             # new_tokens_list, stop = if_stop(new_tokens_list, stopping_words) # TODO: 传入某些数据集的停止符
             # if stop:
             #     break
@@ -267,94 +292,59 @@ class V2TLLM(BaseModel):
             #print(f"debug: {self.tokenizer.decode(input_ids[0][0])}")
             if self.args.llm == 'llava1.5_7b' or self.args.llm == 'llavanext_8b':
               inputs["pixel_values"] = None
-
+            question_ids = self.tokenizer.encode(question_text)
+            
             input_ids_all = torch.cat([input_ids_all, next_token[:, None]], dim=-1)
             question_text = question_text + self.tokenizer.decode(next_token)
-
-        preds = self.tokenizer.decode(new_tokens_list, skip_special_tokens=True)
+        
+        #print(denoised_logits[0].shape)
+        for t in new_tokens_list:
+          print(self.tokenizer.decode([t]))
+        denoised_logits = denoised_logits[0]
+        probs = torch.exp(denoised_logits)
+        entropy_per_timestep = -( probs * denoised_logits).sum(dim=-1)
+        stacked = [entropy_per_timestep]
+        
+        final_logits = head_layer(true_logits[mature_layer])[0, answer_id-2: -1, :]
+        final_logits = final_logits.log_softmax(dim=-1)
+        probs = torch.exp(final_logits)                         # shape (seq_len_slice, vocab)
+        entropy_per_timestep = -( probs * final_logits).sum(dim=-1)
+        stacked.append(entropy_per_timestep)
+        
+        ls = [0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30]
+        ls.reverse()
+        for i in ls:
+            base_logits = head_layer(true_logits[i])[0, answer_id-2: -1, :]
+            base_logits = base_logits.log_softmax(dim=-1)
+            probs = torch.exp(base_logits)  
+            entropy_per_timestep = -(probs * base_logits).sum(dim=-1)
+            #print(base_logits.shape)
+            stacked.append(entropy_per_timestep)
+            
+        stacked_tensors = torch.stack(stacked)
+        
+        HR_5 = stacked_tensors.cpu().numpy()
+        sns.set_theme(font_scale=1.5)
+        sns.set_context({"figure.figsize":(35,15)})
+        heatmap = sns.heatmap(HR_5, annot=True, linewidths=1.5, fmt=".4f", cbar=False,
+                            linecolor="black", cmap="Greens", 
+                            yticklabels=['Denoised',32,30,28,26,24,22,20,18,16,14,12,10,8,6,4,2,0],
+                            xticklabels=[i for i in range(1, HR_5.shape[1]+1)])
+        heatmap.xaxis.tick_top()
+        plt.yticks(rotation=0)
+        plt.ylabel('i-th early exit layer')
+        plt.savefig('heat.pdf', format="pdf")
+        # plt.savefig('heat.jpg')
+        # import pdb; pdb.set_trace()
+        plt.clf()
+        
+        # plt.savefig('heat.svg', format="svg")
         #pre_list.append(preds)
+        
+        preds = self.tokenizer.decode(new_tokens_list, skip_special_tokens=True)
         return preds
     
     def multichoice(self, dataset, item, classifier):
     
         return NotImplementedError
     
-'''
-shot1:
-    question: "what number is shown at the bottom?"
-    img_path: "/mnt/data1/yangmrl/ALW_debug/data/raw_data/textvqa_data/images/train/0a0bc91825468c45.jpg"
-    answer: "30"
-    
-shot2:
-    question: "what does the woman's shirt say?"
-    img_path: "/mnt/data1/yangmrl/ALW_debug/data/raw_data/textvqa_data/images/train/00a0d2280595043f.jpg"
-    answer: "digg"
-
-shot3:
-    question: "what is the name of the bank?"
-    img_path: "/mnt/data1/yangmrl/ALW_debug/data/raw_data/textvqa_data/images/train/00a0db6495982c1d.jpg"
-    answer: "keybank"
-    
-LlavaForConditionalGeneration(
-  (model): LlavaModel(
-    (vision_tower): CLIPVisionModel(
-      (vision_model): CLIPVisionTransformer(
-        (embeddings): CLIPVisionEmbeddings(
-          (patch_embedding): Conv2d(3, 1024, kernel_size=(14, 14), stride=(14, 14), bias=False)
-          (position_embedding): Embedding(577, 1024)
-        )
-        (pre_layrnorm): LayerNorm((1024,), eps=1e-05, elementwise_affine=True)
-        (encoder): CLIPEncoder(
-          (layers): ModuleList(
-            (0-23): 24 x CLIPEncoderLayer(
-              (self_attn): CLIPAttention(
-                (k_proj): Linear(in_features=1024, out_features=1024, bias=True)
-                (v_proj): Linear(in_features=1024, out_features=1024, bias=True)
-                (q_proj): Linear(in_features=1024, out_features=1024, bias=True)
-                (out_proj): Linear(in_features=1024, out_features=1024, bias=True)
-              )
-              (layer_norm1): LayerNorm((1024,), eps=1e-05, elementwise_affine=True)
-              (mlp): CLIPMLP(
-                (activation_fn): QuickGELUActivation()
-                (fc1): Linear(in_features=1024, out_features=4096, bias=True)
-                (fc2): Linear(in_features=4096, out_features=1024, bias=True)
-              )
-              (layer_norm2): LayerNorm((1024,), eps=1e-05, elementwise_affine=True)
-            )
-          )
-        )
-        (post_layernorm): LayerNorm((1024,), eps=1e-05, elementwise_affine=True)
-      )
-    )
-    (multi_modal_projector): LlavaMultiModalProjector(
-      (linear_1): Linear(in_features=1024, out_features=4096, bias=True)
-      (act): GELUActivation()
-      (linear_2): Linear(in_features=4096, out_features=4096, bias=True)
-    )
-    (language_model): LlamaModel(
-      (embed_tokens): Embedding(32064, 4096)
-      (layers): ModuleList(
-        (0-31): 32 x LlamaDecoderLayer(
-          (self_attn): LlamaAttention(
-            (q_proj): Linear(in_features=4096, out_features=4096, bias=False)
-            (k_proj): Linear(in_features=4096, out_features=4096, bias=False)
-            (v_proj): Linear(in_features=4096, out_features=4096, bias=False)
-            (o_proj): Linear(in_features=4096, out_features=4096, bias=False)
-          )
-          (mlp): LlamaMLP(
-            (gate_proj): Linear(in_features=4096, out_features=11008, bias=False)
-            (up_proj): Linear(in_features=4096, out_features=11008, bias=False)
-            (down_proj): Linear(in_features=11008, out_features=4096, bias=False)
-            (act_fn): SiLU()
-          )
-          (input_layernorm): LlamaRMSNorm((4096,), eps=1e-05)
-          (post_attention_layernorm): LlamaRMSNorm((4096,), eps=1e-05)
-        )
-      )
-      (norm): LlamaRMSNorm((4096,), eps=1e-05)
-      (rotary_emb): LlamaRotaryEmbedding()
-    )
-  )
-  (lm_head): Linear(in_features=4096, out_features=32064, bias=False)
-)
-'''
