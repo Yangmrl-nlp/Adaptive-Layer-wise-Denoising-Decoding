@@ -23,8 +23,7 @@ class Classifier(BaseModel):
         self.cfg_dict = cfg
         self.num_labels = llm_cls.cfg_dict.get("layer", 32) // 4 * 3 + 2
 
-        # TODO
-        # self.save_path = f'./ckpts/{self.args.llm}/{self.args.dataset}/'
+        
         self.save_path = f'./ckpts/{self.args.llm}/{args.classifier}/{self.args.dataset}/'
 
     def load(self, tuned_path=None):
@@ -44,7 +43,7 @@ class Classifier(BaseModel):
 
             self.model.cuda()
 
-            print("[Classifier] Success.\n")
+            # print("[Classifier] Success.\n")
 
     def train(self):
         dataset = load_dataset(self.args)
@@ -96,3 +95,4 @@ class Classifier(BaseModel):
 
                     torch.save(self.model.state_dict(), os.path.join(current_dict, f"{str(step)}.pth"))
         print('Training success. \n')
+
