@@ -18,8 +18,7 @@ except AttributeError:
 else:
     ssl._create_default_https_context = _create_unverified_https_context
 
-# 直接下载，nltk.download 会自动检查是否已存在
-print(nltk.data)
+
 for package in ['averaged_perceptron_tagger', 'wordnet', 'punkt', 'omw-1.4']:
     try:
         nltk.data.find(f'tokenizers/{package}')
@@ -27,7 +26,6 @@ for package in ['averaged_perceptron_tagger', 'wordnet', 'punkt', 'omw-1.4']:
         print(f"⚠️ Missing nltk package: {package}, please install manually")
 
 
-# copied from: https://github.com/LisaAnne/Hallucination/blob/master/data/synonyms.txt
 synonyms_txt = '''
 person, girl, boy, man, woman, kid, child, chef, baker, people, adult, rider, children, baby, worker, passenger, sister, biker, policeman, cop, officer, lady, cowboy, bride, groom, male, female, guy, traveler, mother, father, gentleman, pitcher, player, skier, snowboarder, skater, skateboarder, person, woman, guy, foreigner, child, gentleman, caller, offender, coworker, trespasser, patient, politician, soldier, grandchild, serviceman, walker, drinker, doctor, bicyclist, thief, buyer, teenager, student, camper, driver, solider, hunter, shopper, villager
 bicycle, bike, bicycle, bike, unicycle, minibike, trike
@@ -378,31 +376,6 @@ def print_metrics(hallucination_cap_dict, quiet=False):
 
 
 def CHAIR_SCORE(cap_file, image_id_key='image_id', caption_key='caption', 
-                   coco_path='coco_annotations', cache='chair.pkl', save_path=''):
-    """
-    CHAIR 评估函数
-    
-    Args:
-        cap_file (str): JSON 或 JSONL 文件路径，包含图片ID和对应的标题
-        image_id_key (str): cap_file 中存储图片ID的字段名，默认为 'image_id'
-        caption_key (str): cap_file 中存储标题的字段名，默认为 'caption'
-        coco_path (str): COCO 标注文件路径，默认为 'coco_annotations'
-        cache (str): 缓存的 CHAIR 评估器文件路径，默认为 'chair.pkl'
-        save_path (str): 保存评估结果的 JSON 文件路径。如果为空，不保存
-    
-    Returns:
-        dict: 包含详细评估结果的字典
-    
-    Example:
-        result = evaluate_chair(
-            cap_file='/path/to/captions.jsonl',
-            image_id_key='image_id',
-            caption_key='caption',
-            coco_path='/path/to/coco',
-            cache='/path/to/chair.pkl',
-            save_path='/path/to/results.json'
-        )
-    """
     
     if cache and os.path.exists(cache):
         evaluator = pickle.load(open(cache, 'rb'))
@@ -426,7 +399,6 @@ def CHAIR_SCORE(cap_file, image_id_key='image_id', caption_key='caption',
 
 
 # if __name__ == '__main__':
-#     # 使用示例
 #     result = CHAIR_SCORE(
 #         cap_file='/mnt/data1/zjx/project/alw/eval/temp/dola.jsonl',
 #         image_id_key='image_id',
