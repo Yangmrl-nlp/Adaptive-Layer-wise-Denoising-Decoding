@@ -1,98 +1,261 @@
-import torch
-from typing import Optional, Dict, Any
-from .base import BaseModel
-from utils.dataset_loader import load_dataset
-from utils.utils import prepare_input_for_predictor
-from transformers import get_linear_schedule_with_warmup
-from tqdm import tqdm
+from abc import ABC, abstractmethod
+import json
 import os
+from collections import defaultdict
+from pathlib import Path
+import pandas as pd
+from tqdm import tqdm
+from typing import Dict, Type
+import datasets
+import yaml
+from utils.config import Config
+from PIL import Image
 
+class Dataset(ABC):
+    def __init__(self):
+        self.raw_root_path = './data/raw_data'
+        self.labeled_root_path = './data/labeled_data'
+        with open("configs/shots.yaml", "r", encoding="utf-8") as f:
+            self.shot_data = yaml.safe_load(f) or {}
 
-def _import_roberta():
-    from transformers import RobertaForSequenceClassification, RobertaTokenizer
+    @abstractmethod
+    def _load_raw_split(self, split):
+        ...
 
-    return RobertaTokenizer, RobertaForSequenceClassification
+    def load_raw(self, split='all'):
+        if split in ["train", "valid", "test"]:
+            return self._load_raw_split(split)
+        elif split == "all":
+            return {split: self._load_raw_split(split) for split in ["train", "valid", "test"]}
+        else:
+            raise ValueError(f"Unsupported split: {split}")
 
+    @abstractmethod
+    def _load_labeled_split(self, split):
+        ...
 
-class Classifier(BaseModel):
-    def __init__(self, args, llm_cls):
-        super().__init__(args)
-        family, cfg = self.resolve_model_cfg(args.classifier)
-        self.family = family             
-        self.name = args.classifier
-        self.cfg_dict = cfg
-        self.num_labels = llm_cls.cfg_dict.get("layer", 32) // 4 * 3 + 2
+    def load_labeled(self, split):
+        if split in ["train", "valid", "test"]:
+            return self._load_labeled_split(split)
+
+        else:
+            raise ValueError(f"Unsupportedsplit: {split}")
+    
+class POPE(Dataset):
+    def __init__(self, args):
+        super().__init__()
+        self.prefix = f'pope/{args.pope}'
+        self.image_prefix = f'pope/{args.pope}/images'
+        self.args = args
+        self.shot_cfg = Config(self.shot_data)._cfg[self.args.dataset]
+        
+    def _load_raw_split(self, split):
+        file_path = Path(f"{self.raw_root_path}/{self.prefix}/{split}/{split}.json")
+        list_data_dict = []
+        with open(file_path, "r") as f:
+            data = json.load(f)
+            for d in data:
+                list_data_dict.append({
+                    "question": d["question"],
+                    "answer": d["answer"],
+                    "image_path": f"{self.raw_root_path}/{self.image_prefix}/{d['image_filename']}"
+                })
+        return pd.DataFrame(list_data_dict)
+    
+    def _load_labeled_split(self, split):
+        dir_path = f"{self.labeled_root_path}/{self.args.llm}/{self.args.dataset}/{self.args.pope}/{split}"
+        data_file = os.path.join(dir_path, 'data.csv')
+        dataset = datasets.load_dataset("csv", data_files=data_file)['train']
+
+        return dataset    
+    def _create_shot(self):
+        shots = []
+        imgs = []
+
+        for i in self.shot_cfg.keys():
+            shot = self.shot_cfg[i]
+            shots.append(
+            {"role": "user", 
+             "content": [
+                {"type": "text", "text": "Question: " + shot["question"]},
+                {"type": "image"}]
+            })
+            shots.append(
+            {"role": "assistant",
+            "content": [
+                {"type": "text", "text": shot['answer']+'\n'}
+            ],
+            })
+
+            imgs.append(Image.open(shot['img_path']).convert("RGB"))
+
+        return {'text': shots, 'imgs': imgs}
+
+class CHAIR(Dataset):
+    def __init__(self, args):
+        super().__init__()
+        self.prefix = '/mnt/data1-ro/zjx/project/eval/data/raw_data/chair/data'
+        self.image_prefix = '/mnt/data1-ro/zjx/project/eval/data/raw_data/chair/data/val2017'
+        self.args = args
+        self.shot_cfg = Config(self.shot_data)._cfg[self.args.dataset]
+
+    def _load_raw_split(self, split):
+        
+        json_path = Path(f"{self.prefix}/selected_500_images.json")
+        image_root = Path(f"{self.image_prefix}")
+
+        list_data_dict = []
+
+        with open(json_path, "r") as f:
+            data_list = json.load(f)
+
+        for item in tqdm(data_list, desc=f"Loading {split} data"):
+            image_id = item['image_id']
+            question = item["query"]
+            answer = item["gt_objects"]
+            image_filename = item["image_path"]
+
+            list_data_dict.append({
+                "image_id":image_id,
+                "question": question,
+                "answer": answer,
+                "image_path": str(image_root / image_filename)
+            })
+
+        return pd.DataFrame(list_data_dict)
+     
+    def _load_labeled_split(self, split):
+        dir_path = f"{self.labeled_root_path}/{self.args.llm}/{self.args.dataset}/{split}"  
+        data_file = os.path.join(dir_path, 'data.csv')  
+        dataset = datasets.load_dataset("csv", data_files=data_file)['train']  
+        return dataset
+
+    def _create_shot(self):
+
+        if not hasattr(self, 'shot_cfg') or not self.shot_cfg:
+            return {'text': [], 'imgs': []}
+        
+        shots = []  
+        imgs = []   
+
+        for i in self.shot_cfg.keys():
+            shot = self.shot_cfg[i]
+            shots.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Question: " + shot["question"]},
+                    {"type": "image"} 
+                ]
+            })
+    
+            shots.append({
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": shot['answer']+'\n'}
+                ],
+            })
+
+            imgs.append(Image.open(shot['img_path']).convert("RGB"))
+
+        return {'text': shots, 'imgs': imgs}
+
+class MME(Dataset):
+    def __init__(self, args):
+        super().__init__()
+        self.args = args
+        
+        self.mme_root = Path("/mnt/data1-ro/zjx/project/datasets/mme")
+        
+        self.shot_cfg = getattr(Config(self.shot_data), "_cfg", {}).get(self.args.dataset, None)
+
+    def _load_raw_split(self, split="val"):
+       
+        
+        list_data_dict = []
 
         
-        self.save_path = f'./ckpts/{self.args.llm}/{args.classifier}/{self.args.dataset}/'
+        for sub_dir in tqdm(sorted(os.listdir(self.mme_root)), desc=f"Loading MME ({split})"):
+            sub_path = self.mme_root / sub_dir
+            if not sub_path.is_dir():
+                continue
 
-    def load(self, tuned_path=None):
-        arch = self.cfg_dict.get("arch", "RobertaForMaskedLM")
-        pretrained = self.cfg_dict["pretrained"]
+            json_file = sub_path / f"{sub_dir}_QA.json"
+            image_dir = sub_path / "images"
 
-        print(f"[Classifier] Loading {self.name} (arch={arch}) from '{pretrained}' ...")
+            if not json_file.exists():
+                print(f"⚠️ {json_file} not found, skipping.")
+                continue
 
-        if arch == 'RobertaForMaskedLM':
-            RobertaTokenizer, RobertaForSequenceClassification = _import_roberta()
-            self.tokenizer = RobertaTokenizer.from_pretrained(pretrained)
-            self.model = RobertaForSequenceClassification.from_pretrained(pretrained, num_labels=self.num_labels)
+          
+            with open(json_file, "r", encoding="utf-8") as f:
+                data_list = json.load(f)
 
-            if tuned_path:
-                print(f"[Classifier] Replacing parameter from '{tuned_path}' ...")
-                self.model.load_state_dict(torch.load(tuned_path))
+            for item in data_list:
+                question = item["question"]
+                answer = item["answer"]
+                image_filename = item["image"]
+                image_path = image_dir / image_filename
 
-            self.model.cuda()
+                if not image_path.exists():
+                    print(f"⚠️ Image not found: {image_path}")
+                    continue
 
-            print("[Classifier] Success.\n")
+                list_data_dict.append({
+                    "subcategory": sub_dir,
+                    "question": question,
+                    "answer": answer,
+                    "image_path": image_path,
+                    "image": image_filename
+                })
 
-    def train(self):
-        dataset = load_dataset(self.args)
+      
+        return pd.DataFrame(list_data_dict)
+
+    def _load_labeled_split(self, split):
+       
+        dir_path = f"{self.labeled_root_path}/{self.args.llm}/{self.args.dataset}/{split}"
+        data_file = os.path.join(dir_path, 'data.csv')
+        dataset = datasets.load_dataset("csv", data_files=data_file)['train']
+        return dataset
+
+    def _create_shot(self):
+       
+        if not hasattr(self, 'shot_cfg') or not self.shot_cfg:
+            return {'text': [], 'imgs': []}
         
-        train_set = dataset._load_labeled_split('train')
-        train_set, weights = prepare_input_for_predictor(self, train_set)
+        shots = []
+        imgs = []
+        for i in self.shot_cfg.keys():
+            shot = self.shot_cfg[i]
+            shots.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Question: " + shot["question"]},
+                    {"type": "image"}
+                ]
+            })
+            shots.append({
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": shot['answer'] + '\n'}
+                ],
+            })
+            imgs.append(Image.open(shot['img_path']).convert("RGB"))
 
-        # set optimizer, scheduler and loss function
-        total_steps = len(train_set) * self.args.epoch
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.args.lr, eps=1e-7)
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=self.args.warm_up, num_training_steps=total_steps)
-        loss_fn = torch.nn.CrossEntropyLoss(weight=weights)
-        
-        # train
-        self.model.train()
-        print('start training...')
+        return {'text': shots, 'imgs': imgs}
 
-        step = 0
-        total_loss = 0.0
 
-        for epoch in range(self.args.epoch):
-            pbar = tqdm(train_set, desc=f"Epoch: {epoch+1}")
+DATASET_REGISTRY: Dict[str, Type[Dataset]] = {
+    "pope":POPE,
+    "pope_alw":POPE,
+    "chair":CHAIR,
+    "mme":MME
+}
 
-            for batch in pbar:
-                optimizer.zero_grad()
+def load_dataset(args):
+    cls = DATASET_REGISTRY.get(args.dataset.lower(), {})
+    if not cls:
+        raise NotImplementedError
 
-                outputs = self.model(input_ids=batch['input_ids'], attention_mask=batch['attention_mask'])
-                loss = loss_fn(outputs.logits, batch['labels'])
-
-                loss.backward()
-                optimizer.step()
-                scheduler.step()
-
-                total_loss += loss.item()
-                step += 1
-
-                if step % self.args.print_every == 0:
-                    avg_loss = total_loss / self.args.print_every
-                    pbar.set_description(f"Epoch: {epoch+1}, Step: {step}, Avg Loss: {avg_loss:.4f}")
-                    total_loss = 0.0
-
-                # save
-                if step % self.args.save_every == 0:
-                    template = 'lr-epoch-bs-{:}-{:}-{:}'
-                    current_dict = os.path.join(self.save_path, self.args.pope,template.format(self.args.lr, self.args.epoch, self.args.batch_size))
-
-                    if not os.path.exists(current_dict):
-                        os.makedirs(current_dict)
-
-                    torch.save(self.model.state_dict(), os.path.join(current_dict, f"{str(step)}.pth"))
-        print('Training success. \n')
+    return cls(args)
 
