@@ -1,27 +1,22 @@
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=1
 
 cd /mnt/data2/yangmrl/project/ALD^2
 model='llavanext_8b'
 
 
-declare -a lr_list=(
-    1e-05
-    # 2e-05
-    # 5e-05
-    # 0.0001
+declare -a dataset_list=(
+    #'textvqa'
+    'random'
+    'popular'
+    'adversarial'
 )
 
-for lr in "${lr_list[@]}"; do
+for dataset in "${dataset_list[@]}"; do
     # 'textvqa'
-    python -u ./train.py \
-        --classifier 'roberta-base' \
+    python -u /mnt/data2/yangmrl/project/ALD^2/make_training_data.py \
         --dataset 'pope' \
         --llm ${model} \
-        --decode-method 'alw' \
-        --epoch 30 \
-        --batch-size 32 \
-        --lr ${lr} \
-        --save-every 100 \
-        --print-every 100 \
-        --pope adversarial
+        --pope ${dataset} \
+        --Prune 'True' 
+
 done
