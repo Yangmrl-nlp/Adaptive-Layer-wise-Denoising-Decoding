@@ -10,13 +10,13 @@
 
 Large Vision-Language Models (LVLMs) suffer from **hallucinations**, often caused by **noisy representations in shallow layers**.
 
-We propose **ALD2**, a decoding-time framework that:
+We propose **$ALD^{2}$**, a decoding-time framework that:
 
 - 🔍 Identifies noisy shallow layers  
 - ✂️ Applies visual token pruning  
 - ✖️ Uses multiplicative decoding to enhance reliable predictions  
 
-Unlike prior contrastive decoding methods (e.g., VCD, ICD), ALD2:
+Unlike prior contrastive decoding methods (e.g., VCD, ICD), $ALD^{2}$:
 - Works without modifying model weights  
 - Models layer-wise noise explicitly  
 - Improves robustness across multiple benchmarks  
@@ -26,7 +26,7 @@ Unlike prior contrastive decoding methods (e.g., VCD, ICD), ALD2:
 ## 🧩 Method
 
 
-ALD2 consists of three key components:
+$ALD^{2}$ consists of three key components:
 
 ### 1. Visual Token Pruning
 Removes low-attention visual tokens to suppress noise in shallow layers.
@@ -140,11 +140,7 @@ Supported modes:
 ## 📖 Citation
 
 ```
-@article{ald2,
-  title={Adaptive Layer-wise Denoising Decoding for Hallucinations Mitigation in Large Vision-Language Models},
-  journal={Information Processing & Management},
-  year={2026}
-}
+
 ```
 
 ---
