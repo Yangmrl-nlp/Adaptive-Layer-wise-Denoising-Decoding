@@ -94,8 +94,8 @@ class POPE(Dataset):
 class CHAIR(Dataset):
     def __init__(self, args):
         super().__init__()
-        self.prefix = '/mnt/data1-ro/zjx/project/eval/data/raw_data/chair/data'
-        self.image_prefix = '/mnt/data1-ro/zjx/project/eval/data/raw_data/chair/data/val2017'
+        self.prefix = '/path/to/data'
+        self.image_prefix = '/path/to/data/val2017'
         self.args = args
         self.shot_cfg = Config(self.shot_data)._cfg[self.args.dataset]
 
@@ -164,7 +164,7 @@ class MME(Dataset):
         super().__init__()
         self.args = args
         
-        self.mme_root = Path("/mnt/data1-ro/zjx/project/datasets/mme")
+        self.mme_root = Path("/path/to/mme")
         
         self.shot_cfg = getattr(Config(self.shot_data), "_cfg", {}).get(self.args.dataset, None)
 
