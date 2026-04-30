@@ -6,13 +6,9 @@ model='llavanext_8b'
 
 declare -a lr_list=(
     1e-05
-    # 2e-05
-    # 5e-05
-    # 0.0001
 )
 
 for lr in "${lr_list[@]}"; do
-    # 'textvqa'
     python -u ./train.py \
         --classifier 'roberta-base' \
         --dataset 'pope' \
