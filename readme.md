@@ -2,7 +2,7 @@
 
 > Mitigating hallucinations in Large Vision-Language Models via layer-wise denoising and multiplicative decoding
 
-📄 **Accepted by Information Processing & Management (一区top，CCF-B)**  
+📄 **Accepted by Information Processing & Management (一区top，CCF-B)🎉**  
 
 ---
 
