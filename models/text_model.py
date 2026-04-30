@@ -1,4 +1,3 @@
-# models/text_model.py
 import torch
 from typing import Optional, Dict, Any
 from .base import BaseModel
@@ -44,7 +43,7 @@ class TextLLM(BaseModel):
             if self.tokenizer.bos_token_id is None:
                 self.tokenizer.bos_token_id = 1
 
-        else:  # "auto"
+        else:  
             AutoTokenizer, AutoModelForCausalLM = _import_auto()
             self.tokenizer = AutoTokenizer.from_pretrained(pretrained, use_fast=False, padding_side="right")
             self.model = AutoModelForCausalLM.from_pretrained(pretrained, torch_dtype=torch_dtype, device_map='auto')
