@@ -57,13 +57,8 @@ class BaseModel(ABC):
                 write_dict['caption'].append(pred)
             elif self.args.dataset == 'pope':
                 write_dict['question'].append(row['question'])
-                #print(f"debug: {len(row['answer'])}")
                 write_dict['answer'].append(row['answer'])
-                # preds = ""
-                # for p in pred:
-                #     preds = preds+" "+p
                 write_dict['predict'].append(pred)
-                #print(preds)
             elif self.args.dataset == 'mme':
                 write_dict['category'].append(row['subcategory'])
                 write_dict['prompt'].append(row['question'])
@@ -130,9 +125,9 @@ class BaseModel(ABC):
                 cap_file = json_path
                 image_id_key='image_id'
                 caption_key='caption'
-                coco_path='/mnt/data1/zjx/project/alw/data/raw_data/chair/data/coco_path'
-                cache='/mnt/data1/zjx/project/eval/cache/chair_2017.pkl'
-                base_save_path = "/mnt/data1/zjx/project/eval/results/llava1.5_7b/chair/eval_results/"
+                coco_path='/path/to//coco_path'
+                cache='/path/to/chair_2017.pkl'
+                base_save_path = "/path/to/eval_results/"
 
                 if "/alw/" in json_path:
                     sub_path = json_path.split("/alw/")[-1]
@@ -195,8 +190,6 @@ class BaseModel(ABC):
             
         elif self.args.dataset == "pope":
             total_questions = len(df)
-            # print(true_pos)
-            # print(true_neg)
             precision = true_pos / (true_pos + false_pos)
             recall = true_pos / (true_pos + false_neg)
             f1 = 2 * precision * recall / (precision + recall)
@@ -206,10 +199,7 @@ class BaseModel(ABC):
             print(f'F1 Score: {f1 * 100}')
             print(f'ACC: {accuracy * 100}')
             
-            # res["POPE Score"] = f1
-            # with open(f"/mnt/data1/yangmrl/ALW_debug/results/llava1.5_7b/pope/{self.args.pope}.json",'w',encoding='utf-8') as f:
-            #     json.dump(res,f,ensure_ascii=False, indent=4)
-
+            
     def _load_config(self, path: str = "configs/models.yaml") -> None:
         with open(path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
