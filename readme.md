@@ -7,7 +7,7 @@
 ---
 
 ## 🚀 Overview
-
+![ALD^2 overview](assets/ALD^2.png)
 Large Vision-Language Models (LVLMs) suffer from **hallucinations**, often caused by **noisy representations in shallow layers**.
 
 We propose **$ALD^{2}$**, a decoding-time framework that:
