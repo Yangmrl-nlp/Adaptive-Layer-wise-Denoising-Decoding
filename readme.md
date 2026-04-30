@@ -29,7 +29,7 @@ Unlike prior contrastive decoding methods (e.g., VCD, ICD), $ALD^{2}$:
 $ALD^{2}$ consists of three key components:
 
 ### 1. Visual Token Pruning
-Removes low-attention visual tokens to suppress noise in shallow layers.
+Set visual tokens' low-attention score to 0 to suppress noise in shallow layers.
 
 ### 2. Adaptive Layer Selection
 A lightweight predictor selects the optimal denoising layer dynamically.
@@ -59,7 +59,7 @@ This reinforces tokens supported by both shallow and deep layers.
 Edit configuration files:
 
 ```
-/mnt/data1/yangmrl/ALW_debug/configs
+/path/to/configs
 ```
 
 You can customize:
@@ -96,14 +96,6 @@ bash /path/to/scripts/train.sh
 bash /path/to/scripts/infer.sh
 ```
 
-Supported modes:
-
-- `vanilla` → greedy decoding  
-- `dola` → DoLa baseline  
-- `ald2` → our method  
-
----
-
 ## 🧪 Supported Models
 
 - LLaVA-1.5-7B  
@@ -131,12 +123,6 @@ Supported modes:
 
 ---
 
-## 🔓 Release
-
-> Code and data will be released after publication.
-
----
-
 ## 📖 Citation
 
 ```
@@ -150,4 +136,4 @@ Supported modes:
 Inspired by:
 - Contrastive Decoding (VCD, ICD)  
 - DoLa  
-- Layer-wise analysis in LLMs  
+- Layer-wise analysis in LLMs (ALW)
