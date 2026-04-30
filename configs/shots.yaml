@@ -11,7 +11,11 @@ pope_alw:
     answer: "yes"
 
 chair:
-
+  shot1:
+    question: "Is there a person in the image?"
+    img_path: "/path/to/images/example.jpg"
+    answer: "yes"
+    
 mme:
   shot1:
     question: "Is there a person in the image? Please answer yes or no."
