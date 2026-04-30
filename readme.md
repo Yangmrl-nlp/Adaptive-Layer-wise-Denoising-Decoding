@@ -107,7 +107,7 @@ bash /path/to/scripts/infer.sh
 
 ## ⚖️ Trade-offs
 
-| Aspect        | ALD2 |
+| Aspect        | $ALD^{2}$ |
 |--------------|------|
 | Accuracy      | ⭐⭐⭐⭐ |
 | Hallucination | 🔻 Reduced |
