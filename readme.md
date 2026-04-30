@@ -1,8 +1,8 @@
-# 🧠 ALD2: Adaptive Layer-wise Denoising Decoding for LVLMs
+# 🧠 ALD2: Adaptive Layer-wise Denoising Decoding for Large Vision-Language Models
 
 > Mitigating hallucinations in Large Vision-Language Models via layer-wise denoising and multiplicative decoding
 
-📄 **Accepted by Information Processing & Management (CCF-B)**  
+📄 **Accepted by Information Processing & Management (一区top，CCF-B)**  
 
 ---
 
@@ -24,6 +24,7 @@ Unlike prior contrastive decoding methods (e.g., VCD, ICD), ALD2:
 ---
 
 ## 🧩 Method
+
 
 ALD2 consists of three key components:
 
