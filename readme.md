@@ -1,4 +1,4 @@
-# 🧠 ALD$^{2}$: Adaptive Layer-wise Denoising Decoding for Large Vision-Language Models
+# 🧠 $ALD^{2}$: Adaptive Layer-wise Denoising Decoding for Large Vision-Language Models
 
 > Mitigating hallucinations in Large Vision-Language Models via layer-wise denoising and multiplicative decoding
 
