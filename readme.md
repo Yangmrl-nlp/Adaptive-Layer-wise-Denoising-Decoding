@@ -126,7 +126,18 @@ bash /path/to/scripts/infer.sh
 ## 📖 Citation
 
 ```
-
+@article{ZHOU2026104869,
+title = {ALD2: Adaptive layer-wise denoising decoding for hallucinations mitigation in large vision-language models},
+journal = {Information Processing & Management},
+volume = {63},
+number = {7, Part B},
+pages = {104869},
+year = {2026},
+issn = {0306-4573},
+doi = {https://doi.org/10.1016/j.ipm.2026.104869},
+url = {https://www.sciencedirect.com/science/article/pii/S0306457326002608},
+author = {Yuechi Zhou and Morunliu Yang and Jiaxu Zhang and Juntao Li and Siwei Feng},
+}
 ```
 
 ---
