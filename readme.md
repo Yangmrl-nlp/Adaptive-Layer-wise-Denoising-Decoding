@@ -8,10 +8,10 @@
 
 ## 🚀 Overview
 <div align="center">
-  <img src="assets/ALD^2.png" alt="Reagent Framework" width="100%">
+  <img src="assets/ALD^2.png" alt="ALD^2" width="100%">
 </div>
 
-![ALD^2 overview](assets/ALD^2.png)
+
 Large Vision-Language Models (LVLMs) suffer from **hallucinations**, often caused by **noisy representations in shallow layers**.
 
 We propose **$ALD^{2}$**, a decoding-time framework that:
