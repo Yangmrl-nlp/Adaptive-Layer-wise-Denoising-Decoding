@@ -7,6 +7,10 @@
 ---
 
 ## 🚀 Overview
+<div align="center">
+  <img src="assets/ALD^2.png" alt="Reagent Framework" width="100%">
+</div>
+
 ![ALD^2 overview](assets/ALD^2.png)
 Large Vision-Language Models (LVLMs) suffer from **hallucinations**, often caused by **noisy representations in shallow layers**.
 
