@@ -4,9 +4,7 @@
 
 📄 **Accepted by Information Processing & Management (一区top，CCF-B)🎉**  
 
-[![](https://img.shields.io/badge/Elsevier-Paper-orange?logo=elsevier)](https://www.sciencedirect.com/science/article/abs/pii/S0306457326002608)
-
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![](https://img.shields.io/badge/Elsevier-Paper-orange?logo=elsevier)](https://www.sciencedirect.com/science/article/abs/pii/S0306457326002608)   [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
 
 ---
