@@ -133,7 +133,8 @@ bash /path/to/scripts/infer.sh
 ## 📖 Citation
 
 ```
-@article{ZHOU2026104869,
+@article{
+ZHOU2026104869,
 title = {ALD2: Adaptive layer-wise denoising decoding for hallucinations mitigation in large vision-language models},
 journal = {Information Processing & Management},
 volume = {63},
